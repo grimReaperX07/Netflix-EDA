@@ -1,0 +1,77 @@
+select * from  netflix_raw;
+--checking dupes
+SELECT * FROM netflix_raw
+WHERE title IN (
+SELECT title
+from  netflix_raw
+GROUP BY title
+HAVING count(*) > 1);
+
+-- Normalization
+SELECT show_id, 
+       trim(value) AS director
+INTO netflix_directors
+FROM netflix_raw,
+     regexp_split_to_table(director, ',') AS value;
+
+SELECT * FROM netflix_directors;
+
+SELECT show_id, 
+       trim(value) AS country
+INTO netflix_country
+FROM netflix_raw,
+     regexp_split_to_table(country, ',') AS value;
+
+SELECT * FROM netflix_country;
+
+SELECT show_id, 
+       trim(value) AS casts
+INTO netflix_casts
+FROM netflix_raw,
+     regexp_split_to_table(casts, ',') AS value;
+
+SELECT * FROM netflix_casts;
+
+SELECT show_id, 
+       trim(value) AS listed_in
+INTO netflix_listed_in
+FROM netflix_raw,
+     regexp_split_to_table(listed_in, ',') AS value;
+
+SELECT * FROM netflix_listed_in;
+
+INSERT INTO netflix_country 
+SELECT show_id,m.country 
+FROM netflix_cleaned ncl
+INNER JOIN (
+SELECT director,country 
+FROM netflix_country nc  
+INNER JOIN netflix_directors nd 
+ON nc.show_id = nd.show_id 
+GROUP BY director,country 
+) m
+ON ncl.director = m.director
+WHERE ncl.country IS NULL;
+
+SELECT * FROM netflix_raw
+WHERE director ='Ahishor Solomon';
+
+SELECT director,country 
+FROM netflix_country nc  
+INNER JOIN netflix_directors nd 
+ON nc.show_id = nd.show_id 
+GROUP BY director,country 
+--------------------------------
+UPDATE netflix_raw
+SET duration = 
+    CASE 
+        WHEN duration IS NULL 
+        THEN rating
+        ELSE duration
+    END;
+
+CREATE TABLE netflix_cleaned AS
+SELECT show_id,category,title,date_added,release_year,rating,duration,description  
+FROM netflix_raw
+
+SELECT * FROM netflix_cleaned 

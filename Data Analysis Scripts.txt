@@ -1,0 +1,95 @@
+/*1 for each director count the no of movies and tv shows created by them in separate columns
+for directors who have created tv shows and movies both*/ 
+
+WITH cte AS (
+    SELECT 
+        nd.director,
+        COUNT(*) FILTER (WHERE nc.category = 'Movie')   AS movie_count,
+        COUNT(*) FILTER (WHERE nc.category = 'TV Show') AS tvshow_count
+    FROM netflix_cleaned nc
+    JOIN netflix_directors nd 
+        ON nc.show_id = nd.show_id 
+    WHERE nd.director IS NOT NULL
+    GROUP BY nd.director
+)
+SELECT *
+FROM cte
+WHERE movie_count > 0 AND tvshow_count > 0
+ORDER BY director;
+
+------------------------------------------------------
+
+SELECT nd.director,
+       COUNT(CASE WHEN nc.category = 'Movie' THEN 1 END) AS movie_count,
+       COUNT(CASE WHEN nc.category = 'TV Show' THEN 1 END) AS tvshow_count
+FROM netflix_cleaned nc
+JOIN netflix_directors nd 
+  ON nc.show_id = nd.show_id
+WHERE nd.director IS NOT NULL
+GROUP BY nd.director
+HAVING COUNT(CASE WHEN nc.category = 'Movie' THEN 1 END) > 0
+   AND COUNT(CASE WHEN nc.category = 'TV Show' THEN 1 END) > 0
+ORDER BY nd.director;
+
+--2 which country has highest number of comedy movies
+
+SELECT ncon.country, count(*) AS total_count
+FROM netflix_cleaned nc 
+JOIN netflix_listed_in nli 
+	ON nc.show_id = nli.show_id 
+JOIN netflix_country ncon
+	ON nc.show_id = ncon.show_id 
+WHERE nli.listed_in = 'Comedies' AND  nc.category = 'Movie'
+GROUP BY  ncon.country,nli.listed_in
+ORDER BY total_count desc
+
+--3 for each year (as per date added to netflix), which director has maximum number of movies released
+--SELECT * FROM netflix_cleaned  
+WITH yearly_release AS (
+SELECT nd.director ,EXTRACT(YEAR FROM nc.date_added) AS added_year,  count(*) AS no_of_movies_released
+FROM netflix_cleaned nc
+JOIN netflix_directors nd 
+	ON nc.show_id = nd.show_id 
+WHERE nc.category = 'Movie'
+GROUP BY nd.director ,added_year
+),
+Ranked AS (
+SELECT *
+,dense_rank() OVER(PARTITION BY added_year ORDER BY no_of_movies_released desc) AS rnk
+FROM yearly_release
+)
+SELECT director,added_year,no_of_movies_released
+FROM ranked 
+WHERE rnk = 1
+order by added_year;
+
+--4 what is average duration of movies in each genre
+
+select nli.listed_in AS genre
+    ,round(avg(cast(REPLACE(duration, ' min','') AS int)),2)as avg_duration
+FROM netflix_cleaned nc
+JOIN netflix_listed_in nli
+    ON nc.show_id = nli.show_id
+WHERE nc.category = 'Movie'
+  AND nc.duration IS NOT NULL
+GROUP BY genre
+ORDER BY avg_duration DESC;
+
+/*5 find the list of directors who have created horror and comedy movies both.
+display director names along with number of comedy and horror movies directed by them*/
+
+WITH cte AS (
+	SELECT nd.director,
+	count(*) FILTER(WHERE listed_in = 'Comedies') AS comedy_movies,
+	count(*) FILTER(WHERE listed_in = 'Horror Movies') AS horror_movies
+	FROM netflix_directors nd 
+	JOIN netflix_listed_in nli 
+		ON nd.show_id = nli.show_id 
+	JOIN netflix_cleaned nc 
+		ON nc.show_id = nd.show_id
+	WHERE nc.category = 'Movie' 
+	GROUP BY nd.director
+)
+SELECT director,comedy_movies,horror_movies
+FROM cte
+WHERE comedy_movies >= 1 AND horror_movies >= 1; 
